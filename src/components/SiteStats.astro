@@ -1,0 +1,120 @@
+---
+// 首页右侧记录栏：文章 / 说说 / 照片 数量 + 总字数 + 最后更新时间
+// 全部在构建时静态算好，访客端零 JS、零请求
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync } from 'node:child_process';
+import { getCollection } from 'astro:content';
+import { site } from '../site.config';
+
+// ── 文章 / 说说数量 ──
+const posts = await getCollection('blog');
+const talks = await getCollection('talk');
+
+// ── 照片数量：递归统计 src/assets/album 下的图片 ──
+const albumRoot = path.join(process.cwd(), 'src', 'assets', 'album');
+const imageExt = /\.(jpg|jpeg|png|webp|gif|avif)$/i;
+
+function countImages(dir: string): number {
+  if (!fs.existsSync(dir)) return 0;
+  let n = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) n += countImages(p);
+    else if (imageExt.test(entry.name)) n += 1;
+  }
+  return n;
+}
+
+const photoCount = countImages(albumRoot);
+
+// ── 总字数：中文字符数 + 英文单词数（含代码块，不含 frontmatter）──
+const CJK = /[\u3400-\u4dbf\u4e00-\u9fff]/g;
+
+let wordCount = 0;
+for (const post of posts) {
+  const text = post.body ?? '';
+  const cjk = (text.match(CJK) ?? []).length;
+  const latin = (text.replace(CJK, ' ').match(/[A-Za-z0-9][A-Za-z0-9'’_-]*/g) ?? []).length;
+  wordCount += cjk + latin;
+}
+
+function formatCount(n: number) {
+  return n >= 10000 ? `${(n / 10000).toFixed(1).replace(/\.0$/, '')} 万` : String(n);
+}
+
+// ── 最后更新时间：三级降级 ──
+// 1) site.config.ts 填了 statsRepo → 读 GitHub 提交 Atom feed（免认证、无限流）
+// 2) 失败 → 本地 git 最后一次提交时间
+// 3) 再失败 → 最新一篇文章的发布日期
+let cachedUpdate: string | null | undefined;
+
+async function fromGitHub(repo: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://github.com/${repo}/commits/main.atom`, {
+      headers: { 'User-Agent': 'astro-blog-stats' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const xml = await res.text();
+    // feed 级别的第一个 <updated> 就是最后一次提交时间
+    return xml.match(/<feed[^>]*>[\s\S]*?<updated>([^<]+)<\/updated>/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function fromGit(): string | null {
+  try {
+    return execSync('git log -1 --format=%cI', { encoding: 'utf8' }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// 统一转成北京时间（UTC+8，无夏令时），避免构建机时区影响显示
+function formatTime(iso: string | null): string | null {
+  if (!iso) return null;
+  // 纯日期（如文章 pubDate '2026-09-13'）直接原样显示
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const d = new Date(t + 8 * 3600 * 1000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ` +
+         `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+
+if (cachedUpdate === undefined) {
+  const repo = site.statsRepo?.trim();
+  const raw =
+    (repo ? await fromGitHub(repo) : null) ??
+    fromGit() ??
+    posts.map((p) => p.data.pubDate).sort().at(-1) ??
+    null;
+  cachedUpdate = formatTime(raw);
+}
+
+const updatedAt = cachedUpdate;
+
+const rows = [
+  { label: '文章', value: `${posts.length} 篇` },
+  { label: '说说', value: `${talks.length} 条` },
+  { label: '照片', value: `${photoCount} 张` },
+  { label: '总字数', value: formatCount(wordCount) },
+  ...(updatedAt ? [{ label: '最后更新', value: updatedAt }] : []),
+];
+---
+
+<div class="rounded-2xl border border-fg/10 bg-bg/50 backdrop-blur-md
+            shadow-lg shadow-black/5 p-5">
+  <h2 class="text-xs font-mono tracking-[0.3em] uppercase text-fg/40 mb-4">记录</h2>
+  <dl class="space-y-3">
+    {rows.map((row) => (
+      <div class="flex items-baseline justify-between gap-3">
+        <dt class="text-xs text-fg/40 shrink-0">{row.label}</dt>
+        <dd class="text-sm font-medium text-fg/80 font-mono text-right">{row.value}</dd>
+      </div>
+    ))}
+  </dl>
+</div>

@@ -1,0 +1,22 @@
+---
+// 首页左侧公告栏：内容来自 site.config.ts 的 notices 数组
+// 数组为空时整个组件不渲染任何内容（父级会用 ! 判断是否显示）
+import { site } from '../site.config';
+
+const notices = site.notices ?? [];
+---
+
+{notices.length > 0 && (
+  <div class="rounded-2xl border border-fg/10 bg-bg/50 backdrop-blur-md
+              shadow-lg shadow-black/5 p-5">
+    <h2 class="text-xs font-mono tracking-[0.3em] uppercase text-fg/40 mb-4">公告</h2>
+    <ul class="space-y-3">
+      {notices.map((text) => (
+        <li class="flex gap-2 text-sm text-fg/65 leading-relaxed">
+          <span class="text-accent/60 select-none shrink-0">·</span>
+          <span>{text}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+)}

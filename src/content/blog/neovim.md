@@ -4,6 +4,7 @@ description: '在 Arch / CachyOS 上从零安装 Neovim 与 LazyVim，配齐搜�
 pubDate: '2026-09-13'
 category: 'Linux'
 tags: ['linux', 'neovim' , '终端美化']
+cover: '/covers/nvim.png'
 ---
 
 ## 一、安装依赖

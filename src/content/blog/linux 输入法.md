@@ -4,6 +4,7 @@ description: '在 Arch Linux 上用 Fcitx5 搭配 Rime 引擎，先配好开箱�
 pubDate: '2026-09-13'
 category: 'Linux'
 tags: ['linux', 'fcitx5', ]
+cover: '/covers/雾凇.png'
 ---
 
 雾凇拼音是一份开箱即用的简体中文 Rime 输入法配置：词库长期维护、基本功能齐全、完全离线使用、质量稳定可靠。
