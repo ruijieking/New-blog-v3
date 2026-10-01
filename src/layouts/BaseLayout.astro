@@ -109,6 +109,33 @@ function navClass(href: string) {
       </defs>
     </svg>
 
+    <!-- Chromium 首屏不会为 backdrop-filter 引用的 SVG 滤镜建立合成，
+         导致第一次打开页面时液态玻璃不生效、刷新一次（资源已缓存）才出现。
+         这里在加载完成后主动触发一次重新合成，强制它立刻生效。 -->
+    <script is:inline>
+      (function () {
+        function wake() {
+          var el = document.querySelector('.liquid-glass');
+          if (!el) return;
+          // 摘掉再装回滤镜声明，迫使 Chromium 重建 backdrop 合成层
+          el.style.backdropFilter = 'none';
+          el.style.setProperty('-webkit-backdrop-filter', 'none');
+          void el.offsetWidth; // 强制样式重算（不会插入绘制帧，因此不会闪）
+          el.style.backdropFilter = '';
+          el.style.removeProperty('-webkit-backdrop-filter');
+        }
+        window.addEventListener('load', function () {
+          // 铺开几个时间点：壁纸图片解码、淡入动画结束都可能晚于 load，
+          // 每个点各唤醒一次，确保最终一定合成出来
+          wake();
+          setTimeout(wake, 400);
+          setTimeout(wake, 1000);
+          setTimeout(wake, 2000);
+        });
+        document.addEventListener('astro:page-load', wake);
+      })();
+    </script>
+
     <!-- 全宽导航条：logo 在最左，导航+主题/壁纸在最右，中间留空 -->
     <header class="sticky top-4 z-50 px-4 md:px-6">
       <div class="liquid-glass flex items-center justify-between w-full px-20 py-4
