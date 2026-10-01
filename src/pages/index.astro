@@ -1,10 +1,78 @@
 ---
-// 首页 - 网站主页
+// 首页：英雄区 + 「今日说法 / 最新文章 / 最新照片」三块最新内容
+import fs from 'node:fs';
+import path from 'node:path';
+import { getCollection } from 'astro:content';
+import { getImage } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import AnimateIn from '../components/AnimateIn.astro';
+import Icon from '../components/Icon.astro';
 import { site } from '../site.config';
 
 const siteUrl = site.url || 'https://example.com';
+
+// ── 最新文章：按发布日期倒序，取前 3 篇 ──
+const posts = (await getCollection('blog'))
+  .sort((a, b) => b.data.pubDate.localeCompare(a.data.pubDate))
+  .slice(0, 3);
+
+// ── 最新说说：按 update 倒序，取前 2 条 ──
+const talks = (await getCollection('talk'))
+  .sort((a, b) => (b.data.update ?? '').localeCompare(a.data.update ?? ''))
+  .slice(0, 2);
+
+// 从 markdown 正文提取纯文本，去掉图片/链接语法和多余空白，截取前 n 个字
+function excerpt(body: string | undefined, n = 48) {
+  const text = (body ?? '')
+    .replace(/!\[.*?\]\(.*?\)/g, ' ')    // 图片语法
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1')  // 链接语法
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > n ? text.slice(0, n) + '…' : text;
+}
+
+// ── 最新相册：取「最新一张照片修改时间」最大的相册，最多取前 3 张 ──
+const albumRoot = path.join(process.cwd(), 'src', 'assets', 'album');
+const imageExt = /\.(jpg|jpeg|png|webp|gif|avif)$/i;
+
+const albumModules = import.meta.glob(
+  '/src/assets/album/**/*.{jpg,jpeg,png,webp,gif,avif}',
+  { eager: true },
+) as Record<string, { default: ImageMetadata }>;
+
+let latestAlbum: { name: string; images: string[]; count: number } | null = null;
+
+if (fs.existsSync(albumRoot)) {
+  const dirs = fs.readdirSync(albumRoot, { withFileTypes: true }).filter((d) => d.isDirectory());
+  let best: { name: string; mtime: number; files: string[] } | null = null;
+  for (const d of dirs) {
+    const dir = path.join(albumRoot, d.name);
+    const files = fs.readdirSync(dir).filter((f) => imageExt.test(f)).sort();
+    let mtime = 0;
+    for (const f of files) {
+      const t = fs.statSync(path.join(dir, f)).mtimeMs;
+      if (t > mtime) mtime = t;
+    }
+    if (!best || mtime > best.mtime) best = { name: d.name, mtime, files };
+  }
+  if (best) {
+    const images: string[] = [];
+    for (const f of best.files.slice(0, 3)) {
+      const key = Object.keys(albumModules).find((k) => k.includes(`/${best!.name}/${f}`));
+      const meta = key ? albumModules[key]?.default : undefined;
+      if (meta) {
+        try {
+          const opt = await getImage({ src: meta, width: 800, format: 'webp' });
+          images.push(opt.src);
+        } catch {
+          /* 无法处理的图片直接跳过 */
+        }
+      }
+    }
+    latestAlbum = { name: best.name, images, count: best.files.length };
+  }
+}
 ---
 
 <BaseLayout
@@ -27,10 +95,157 @@ const siteUrl = site.url || 'https://example.com';
     ],
   }}
 >
-    <div class="max-w-4xl mx-auto px-6 pt-24 pb-16">
-        <AnimateIn>
-        <p class="text-xs tracking-[0.3em] uppercase text-fg/30 mb-3">WELCOME / 欢迎</p>
-        </AnimateIn>
-    </div>
+  <div class="max-w-3xl mx-auto px-6 pt-24 pb-16">
+    <!-- 英雄区 -->
+    <AnimateIn>
+      <p class="text-xs tracking-[0.3em] uppercase text-fg/30 mb-3">WELCOME / 欢迎</p>
+      <h1 class="text-4xl font-bold">{site.name}</h1>
+      <p class="mt-4 text-fg/60 leading-relaxed max-w-2xl">{site.description}</p>
+    </AnimateIn>
 
+    <!-- 今日说法 -->
+    <AnimateIn delay={100}>
+      <section class="mt-20">
+        <div class="flex items-baseline justify-between mb-4">
+          <h2 class="text-lg font-bold">今日说法</h2>
+          <a href="/talk" class="text-xs text-fg/40 hover:text-accent transition-colors">全部 →</a>
+        </div>
+
+        {talks.length === 0 ? (
+          <p class="text-sm text-fg/40">还没有说说。</p>
+        ) : (
+          <div class="flex flex-col gap-3">
+            {talks.map((talk) => (
+              <a
+                href={`/talk/${encodeURIComponent(talk.id)}`}
+                class="block group rounded-2xl border border-fg/10 bg-bg/50 backdrop-blur-md p-5
+                       hover:bg-bg/70 hover:border-accent/30 transition-colors duration-200"
+              >
+                <p class="text-sm font-medium text-fg/80 leading-relaxed line-clamp-3">
+                  {excerpt(talk.body)}
+                </p>
+                {talk.data.update && (
+                  <time class="block mt-3 text-xs text-fg/35 font-mono">{talk.data.update}</time>
+                )}
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
+    </AnimateIn>
+
+    <!-- 最新文章 -->
+    <AnimateIn delay={150}>
+      <section class="mt-20">
+        <div class="flex items-baseline justify-between mb-4">
+          <h2 class="text-lg font-bold">最新文章</h2>
+          <a href="/blog" class="text-xs text-fg/40 hover:text-accent transition-colors">全部 →</a>
+        </div>
+
+        {posts.length === 0 ? (
+          <p class="text-sm text-fg/40">还没有文章。</p>
+        ) : (
+          <div class="flex flex-col gap-4">
+            {posts.map((post) => (
+              <a href={`/blog/${post.id}`} class="group block">
+                <!-- 方案 B：图片嵌在卡片内，贴左边缘满高；卡片 overflow-hidden 负责裁圆角 -->
+                <div
+                  class="flex items-stretch min-h-40 sm:min-h-56 overflow-hidden
+                         rounded-2xl border border-fg/10 bg-bg/50 backdrop-blur-md
+                         group-hover:bg-bg/70 group-hover:border-accent/30
+                         transition-colors duration-200"
+                >
+                  <!-- 左半边：封面图，占卡片宽度 50%，高度撑满 -->
+                  <div class="relative w-1/2 shrink-0 self-stretch overflow-hidden">
+                    {post.data.cover ? (
+                      <img
+                        src={post.data.cover}
+                        alt=""
+                        loading="lazy"
+                        class="absolute inset-0 w-full h-full object-cover
+                               transition-transform duration-500 group-hover:scale-[1.04]"
+                      />
+                    ) : (
+                      <div class="absolute inset-0 bg-fg/5 flex items-center justify-center">
+                        <Icon name="doc" class="w-8 h-8 text-fg/25" />
+                      </div>
+                    )}
+                  </div>
+
+                  <!-- 右半边：标题 + 简介 + 日期 + 箭头 -->
+                  <div class="w-1/2 min-w-0 p-5 flex flex-col justify-center gap-3">
+                    <p class="text-base font-bold leading-snug line-clamp-2
+                              group-hover:text-accent transition-colors duration-200">
+                      {post.data.title}
+                    </p>
+                    <p class="text-sm text-fg/50 leading-relaxed line-clamp-2">
+                      {post.data.description}
+                    </p>
+                    <div class="flex items-center justify-between gap-3">
+                      <time class="text-xs text-fg/35 font-mono">{post.data.pubDate}</time>
+                      <Icon
+                        name="arrow-right"
+                        class="w-4 h-4 shrink-0 text-fg/25 transition-all duration-300
+                               group-hover:text-accent group-hover:translate-x-0.5"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
+    </AnimateIn>
+
+    <!-- 最新照片 -->
+    <AnimateIn delay={200}>
+      <section class="mt-20">
+        <div class="flex items-baseline justify-between mb-4">
+          <h2 class="text-lg font-bold">最新照片</h2>
+          <a href="/photo" class="text-xs text-fg/40 hover:text-accent transition-colors">全部相册 →</a>
+        </div>
+
+        {!latestAlbum || latestAlbum.images.length === 0 ? (
+          <p class="text-sm text-fg/40">还没有照片。</p>
+        ) : (
+          <a href={`/photo/${encodeURIComponent(latestAlbum.name)}`} class="block group">
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+              <!-- 第一张：大图 + 相册名覆盖层（移动端独占整行） -->
+              <div class="relative col-span-2 overflow-hidden rounded-2xl h-52 sm:h-64">
+                <img
+                  src={latestAlbum.images[0]}
+                  alt={latestAlbum.name}
+                  loading="lazy"
+                  class="w-full h-full object-cover
+                         transition-transform duration-500 group-hover:scale-[1.03]"
+                />
+                <div class="absolute inset-x-0 bottom-0
+                            bg-gradient-to-t from-black/60 via-black/25 to-transparent
+                            px-4 pt-12 pb-4">
+                  <p class="text-white font-bold text-lg leading-snug">{latestAlbum.name}</p>
+                  <p class="text-white/70 text-xs mt-0.5">{latestAlbum.count} 张照片</p>
+                </div>
+              </div>
+
+              <!-- 第二、三张：右侧竖排（移动端隐藏），高度与左图一致，内部均分 -->
+              {latestAlbum.images.length > 1 && (
+                <div class="hidden sm:flex flex-col gap-3 h-52 sm:h-64">
+                  {latestAlbum.images.slice(1, 3).map((src, i) => (
+                    <img
+                      src={src}
+                      alt=""
+                      loading="lazy"
+                      class="w-full flex-1 min-h-0 object-cover rounded-2xl
+                             transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </a>
+        )}
+      </section>
+    </AnimateIn>
+  </div>
 </BaseLayout>
