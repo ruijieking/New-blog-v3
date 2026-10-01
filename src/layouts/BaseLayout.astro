@@ -214,7 +214,10 @@ function navClass(href: string) {
     });
   </script>
 
-  <style>
+  <!-- 液态玻璃样式必须用 is:inline 原样输出。
+       否则构建时的 Lightning CSS 会把手写的 backdrop-filter 删掉、只保留 -webkit- 前缀，
+       而 Chrome 的 -webkit-backdrop-filter 别名不支持 url() 滤镜引用 —— 折射效果就会消失。 -->
+  <style is:inline>
     /* SVG 滤镜容器：不能占布局空间，否则会挤开页面 */
     .liquid-glass-svg {
       position: absolute;
