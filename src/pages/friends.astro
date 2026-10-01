@@ -1,0 +1,201 @@
+---
+// 友链页：展示 site.friends 里配置的友情链接，并提供「申请友链」的信息卡片
+// 想增删友链 → 只改 src/site.config.ts 的 friends 数组即可，这个文件不用动
+import BaseLayout from '../layouts/BaseLayout.astro';
+import AnimateIn from '../components/AnimateIn.astro';
+import Icon from '../components/Icon.astro';
+import { site } from '../site.config';
+
+const friends = site.friends ?? [];
+const avatar = site.author.avatar || `https://github.com/${site.author.github}.png`;
+
+// 「我的信息」文本块：方便对方站长直接复制粘贴
+const myInfo = [
+  `名称：${site.name}`,
+  `链接：${site.url}`,
+  `头像：${avatar}`,
+  `简介：${site.description}`,
+].join('\n');
+
+const applyNote =
+  site.friendApplyNote ||
+  '欢迎交换友链～ 请先在你的站点加上本站链接，然后把「名称 / 链接 / 头像 / 简介」发给我。';
+
+// 联系方式优先用 site.socials（邮箱等），没有就退回邮箱
+const contacts = (site.socials ?? []).filter((s) => s.href.startsWith('mailto:'));
+
+// 没有头像时，用站点名首字生成占位圆
+const initial = (name: string) => (name.trim()[0] ?? '?').toUpperCase();
+---
+
+<BaseLayout title="友链">
+  <div class="max-w-4xl mx-auto px-6 pt-24 pb-16">
+    <p class="text-xs tracking-[0.3em] uppercase text-fg/30 mb-3">LINKS / 友链</p>
+    <h1 class="text-3xl font-bold mb-3">友情链接</h1>
+    <p class="text-sm text-fg/50 mb-10">
+      互联网上的一些好地方，{friends.length} 个站点。
+    </p>
+
+    <!-- ── 友链卡片网格 ── -->
+    {friends.length === 0 ? (
+      <div
+        class="rounded-2xl border border-dashed border-fg/15 bg-bg/40 p-10 text-center"
+      >
+        <p class="text-fg/50">还没有添加友链。</p>
+        <p class="mt-2 text-xs text-fg/35">
+          在 <code class="font-mono text-accent">src/site.config.ts</code> 的
+          <code class="font-mono text-accent">friends</code> 数组里加一条就行了。
+        </p>
+      </div>
+    ) : (
+      <div class="grid gap-4 sm:grid-cols-2">
+        {friends.map((friend, i) => (
+          <AnimateIn delay={i * 60}>
+            <a
+              href={friend.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="group flex h-full items-center gap-4
+                     rounded-2xl border border-fg/10 bg-bg/50 backdrop-blur-md
+                     shadow-lg shadow-black/5 p-4
+                     hover:-translate-y-0.5 hover:border-accent/40
+                     transition-all duration-300"
+            >
+              <!-- 头像：先垫一层「首字占位」，有 avatar 时图片盖在上面；
+                   图片挂了（外链失效/被墙）会自动移除，露出下面的占位，不会显示裂图 -->
+              <span class="relative w-12 h-12 shrink-0">
+                <span
+                  class="absolute inset-0 grid place-items-center rounded-full
+                         bg-accent/15 text-accent font-bold text-lg ring-2 ring-fg/10"
+                  aria-hidden="true"
+                >
+                  {initial(friend.name)}
+                </span>
+                {friend.avatar && (
+                  <img
+                    src={friend.avatar}
+                    alt={`${friend.name} 的头像`}
+                    width="48"
+                    height="48"
+                    loading="lazy"
+                    onerror="this.remove()"
+                    class="absolute inset-0 w-12 h-12 rounded-full object-cover ring-2 ring-fg/10
+                           transition-transform duration-300 group-hover:scale-105"
+                  />
+                )}
+              </span>
+
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-1.5">
+                  <span
+                    class="font-bold truncate text-fg
+                           transition-colors duration-200 group-hover:text-accent"
+                  >
+                    {friend.name}
+                  </span>
+                  <Icon
+                    name="arrow-right"
+                    class="w-3.5 h-3.5 shrink-0 text-fg/25
+                           transition-all duration-300
+                           group-hover:text-accent group-hover:translate-x-0.5"
+                  />
+                </span>
+                {friend.description && (
+                  <span class="mt-1 block text-xs text-fg/50 leading-relaxed line-clamp-2">
+                    {friend.description}
+                  </span>
+                )}
+              </span>
+            </a>
+          </AnimateIn>
+        ))}
+      </div>
+    )}
+
+    <!-- ── 申请友链 ── -->
+    <AnimateIn delay={120}>
+      <div
+        class="mt-10 rounded-2xl border border-fg/10 bg-bg/50 backdrop-blur-md
+               shadow-lg shadow-black/5 p-6 sm:p-8"
+      >
+        <h2 class="text-xs font-mono tracking-[0.3em] uppercase text-fg/40 mb-4">
+          申请友链
+        </h2>
+
+        <p class="text-sm text-fg/70 leading-relaxed">{applyNote}</p>
+
+        <!-- 我的站点信息：等宽字体，方便一眼看清 / 手动复制 -->
+        <pre
+          id="friend-info"
+          class="mt-5 overflow-x-auto rounded-xl border border-fg/10 bg-fg/[0.03]
+                 p-4 text-xs leading-relaxed text-fg/70 font-mono"
+        >{myInfo}</pre>
+
+        <div class="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            id="copy-info"
+            type="button"
+            class="inline-flex items-center gap-1.5 rounded-full border border-fg/15
+                   px-4 py-2 text-xs font-medium text-fg/70
+                   hover:border-accent/50 hover:text-accent
+                   transition-colors duration-200"
+          >
+            <Icon name="doc" class="w-3.5 h-3.5 shrink-0" />
+            <span id="copy-info-text">复制我的信息</span>
+          </button>
+
+          {contacts.map((c) => (
+            <a
+              href={c.href}
+              class="inline-flex items-center gap-1.5 rounded-full border border-fg/15
+                     px-4 py-2 text-xs font-medium text-fg/70
+                     hover:border-accent/50 hover:text-accent
+                     transition-colors duration-200"
+            >
+              <Icon name={c.icon} class="w-3.5 h-3.5 shrink-0" />
+              <span>{c.label}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </AnimateIn>
+  </div>
+
+  <script>
+    // 复制「我的信息」：clipboard API 不可用（非 https / 老浏览器）时退回 execCommand
+    const copyBtn = document.getElementById('copy-info');
+    const copyText = document.getElementById('copy-info-text');
+    const infoEl = document.getElementById('friend-info');
+
+    copyBtn?.addEventListener('click', async () => {
+      if (!infoEl || !copyText) return;
+      const text = infoEl.textContent ?? '';
+
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch {
+        // 降级：选中 textarea 再执行 copy 命令
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          ok = document.execCommand('copy');
+        } catch {
+          ok = false;
+        }
+        ta.remove();
+      }
+
+      const original = '复制我的信息';
+      copyText.textContent = ok ? '已复制 ✓' : '复制失败，请手动选中';
+      setTimeout(() => {
+        copyText.textContent = original;
+      }, 1600);
+    });
+  </script>
+</BaseLayout>

@@ -52,12 +52,45 @@ export const site = {
     { label: 'QQ 邮箱',  href: 'mailto:你的QQ号@qq.com',              icon: 'mail' },
   ],
 
+  // ── 友情链接 ──
+  // 每个字段含义：
+  //   name        站点名称（必填）
+  //   url         站点地址（必填，带 https://）
+  //   description 一句话简介（可选）
+  //   avatar      头像图片地址（可选，留空则用站点名首字自动生成圆形占位）
+  // 数组留空 → 友链页会显示「还没有友链」的占位文案
+  friends: [
+    {
+      name: 'Astro',
+      url: 'https://astro.build',
+      description: '本站使用的静态站点框架，内容优先、默认零 JS。',
+      avatar: 'https://astro.build/favicon.svg',
+    },
+    {
+      name: 'Tailwind CSS',
+      url: 'https://tailwindcss.com',
+      description: '工具类优先的 CSS 框架，本站样式全部由它驱动。',
+      avatar: 'https://tailwindcss.com/favicons/favicon-32x32.png',
+    },
+    {
+      name: 'Vite',
+      url: 'https://vite.dev',
+      description: '极速的前端构建工具，Astro 的底层构建引擎。',
+      avatar: 'https://vite.dev/logo.svg',
+    },
+  ],
+
+  // 友链页「申请友链」卡片的说明文字（留空则用默认文案）
+  friendApplyNote:
+    '欢迎交换友链～ 请先在你的站点加上本站链接，然后通过下面的任一方式把「名称 / 链接 / 头像 / 简介」发给我。',
+
   // 导航栏（href + 显示文字，数组顺序即显示顺序）
   nav: [
     { href: '/talk', label: '今日说法' },
     { href: '/blog', label: '文章' },
     { href: '/archive', label: '归档' },
     { href: '/photo', label: '照片' },
+    { href: '/friends', label: '友链' },
     { href: '/about', label: '关于我' },
   ],
 };
