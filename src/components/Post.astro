@@ -18,13 +18,27 @@ const posts = (await getCollection('blog')).sort(
   ) : (
     <div class="flex flex-col gap-4">
       {posts.map((post, i) => {
-        const { title, description, pubDate, category, tags } = post.data;
+        const { title, description, pubDate, category, tags, cover, coverAlt } = post.data;
         const href = `/blog/${post.id}`;
         return (
           <AnimateIn delay={i * 80}>
             <a href={href} class="block group transition-all duration-300
                                   hover:-translate-y-0.5">
               <ReadFrostedGlass>
+                <!-- 封面图（可选）：用负 margin 顶到卡片边缘，外层用 overflow-hidden 裁圆 -->
+                {cover && (
+                  <div class="-mx-8 -mt-8 mb-5 md:-mx-10 md:-mt-10 md:mb-6
+                              overflow-hidden rounded-t-[15px]">
+                    <img
+                      src={cover}
+                      alt={coverAlt || title}
+                      loading="lazy"
+                      class="w-full aspect-[16/9] object-cover
+                             transition-transform duration-500 group-hover:scale-[1.03]"
+                    />
+                  </div>
+                )}
+
                 <!-- 标题 -->
                 <h2 class="text-lg font-bold text-fg group-hover:text-accent
                            transition-colors duration-200 leading-snug">

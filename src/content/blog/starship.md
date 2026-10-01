@@ -4,6 +4,7 @@ description: '基于 Alacritty 安装 Starship 提示符，配好 JetBrains Mono
 pubDate: '2026-09-13'
 category: 'Linux'
 tags: ['linux',  '终端美化']
+cover: '/covers/fa.png'
 ---
 
 Starship 是一个十分美观的终端提示符工具，本文的配置基于 **Alacritty** 终端。

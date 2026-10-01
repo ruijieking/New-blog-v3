@@ -10,6 +10,10 @@ const blog = defineCollection({
     pubDate: z.string(),
     category: z.string().optional(),
     tags: z.array(z.string()).optional(),
+    // 列表卡片封面图：public/ 下的路径（如 '/covers/foo.png'）或完整图片 URL
+    cover: z.string().optional(),
+    // 封面图的 alt 文本，不写则用文章标题
+    coverAlt: z.string().optional(),
   }),
 });
 
