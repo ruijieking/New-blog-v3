@@ -10,7 +10,7 @@ const posts = (await getCollection('blog')).sort(
 );
 ---
 
-<div class="max-w-2xl mx-auto px-6 pt-24 pb-16">
+<div class="max-w-3xl mx-auto px-6 pt-24 pb-16">
   <p class="text-xs tracking-[0.3em] uppercase text-fg/30 mb-3">BLOG / 文章</p>
   <h1 class="text-3xl font-bold mb-8">文章列表</h1>
 
@@ -33,7 +33,7 @@ const posts = (await getCollection('blog')).sort(
                   {cover && (
                     <div class="relative shrink-0 overflow-hidden rounded-l-[15px]
                                 -my-8 -ml-8 md:-my-10 md:-ml-10
-                                w-24 sm:w-40">
+                                w-3/5">
                       <img
                         src={cover}
                         alt={coverAlt || title}
