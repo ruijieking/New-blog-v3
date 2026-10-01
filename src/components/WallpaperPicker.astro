@@ -124,33 +124,49 @@ const defaultDark = defaultWallpaper('dark');
     return `wallpaper-${getTheme()}`;
   }
 
-  // ===== 双图层壁纸系统（Linux 风格kde交叉淡入淡出） =====
+  // ===== 双图层壁纸系统 =====
+  // layerA（上层，z-index -1）：专门负责「淡入」新壁纸
+  // layerB（下层，z-index -2）：始终不透明的底片，全程托底 → 画面不会透光、不会闪
+  //
+  // 为什么不直接交叉淡化（上层淡出 + 下层淡入）？
+  // 两层同时处于半透明时，叠加后的总不透明度会掉到 75% 左右，
+  // 中间那 25% 会露出页面底色（body 透明后就是浏览器白底），看起来就是「闪一下」。
   const layerA = document.createElement('div');
   const layerB = document.createElement('div');
 
   [layerA, layerB].forEach((layer, i) => {
     layer.id = `wp-layer-${i === 0 ? 'a' : 'b'}`;
     layer.style.cssText = `
-      position: fixed; inset: 0; z-index: -1;
+      position: fixed; inset: 0; z-index: ${i === 0 ? -1 : -2};
       background-size: cover; background-position: center;
       transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
       pointer-events: none;
+      /* 自带主题底色打底：图片还没解码完也不会露出白底 */
+      background-color: var(--c-bg);
       opacity: 0;
     `;
     document.body.prepend(layer);
   });
 
-  let activeLayer = layerA;      // 当前可见图层
-  let inactiveLayer = layerB;    // 待切换的隐藏图层
-  let currentSrc = null;         // 当前显示的壁纸路径
-  let pendingSrc = null;         // 正在加载的目标壁纸（用于丢弃过期请求）
-  let transitionTimer = null;    // 动画定时器
+  // 【防止闪白的关键】
+  // 壁纸图层需要 body 背景透明才能露出来，而 body 一旦透明，
+  // 浏览器会把最底层画布（html/canvas）回落成默认的白色 ——
+  // 只要有任何一帧图层没完全盖住视口，看到的就是一片刺眼的白。
+  // 所以直接给 html 指定主题底色：canvas 永远是有颜色的，白色不可能再出现。
+  document.documentElement.style.backgroundColor = 'var(--c-bg)';
 
-  // 交换活跃/非活跃图层
-  function swapLayers() {
-    const tmp = activeLayer;
-    activeLayer = inactiveLayer;
-    inactiveLayer = tmp;
+  let currentSrc = null;         // 当前已经稳定显示的壁纸路径
+  let pendingSrc = null;         // 正在加载的目标壁纸（用于丢弃过期请求）
+  let fadeTimer = null;          // 淡入结束后的收尾定时器
+  let cleanupTimer = null;       // 上层淡出结束后清图的定时器
+
+  // 瞬间（无过渡）把一个图层铺好，用于首屏和动画收尾
+  function setInstant(layer, src) {
+    layer.style.transition = 'none';
+    layer.style.backgroundImage = `url("${src}")`;
+    layer.style.opacity = '1';
+    layer.offsetHeight; // 强制回流，让浏览器立刻采用新样式
+    requestAnimationFrame(() => { layer.style.transition = ''; });
   }
 
   // 预加载壁纸：等图片真正下载 + 解码完成后，再开始切换动画。
@@ -173,54 +189,67 @@ const defaultDark = defaultWallpaper('dark');
 
   // 应用壁纸（带动画）
   function applyWallpaper(src) {
-    // 清除壁纸：图层淡出，恢复 body 主题背景色
+    // 清除壁纸：两层一起淡出，露出页面自身的主题底色
     if (!src) {
       pendingSrc = null;
       currentSrc = null;
+      if (fadeTimer) { clearTimeout(fadeTimer); fadeTimer = null; }
+      if (cleanupTimer) { clearTimeout(cleanupTimer); cleanupTimer = null; }
+      layerA.style.transition = '';
+      layerB.style.transition = '';
       document.body.style.backgroundColor = '';
-      activeLayer.style.opacity = '0';
-      inactiveLayer.style.opacity = '0';
+      layerA.style.opacity = '0';
+      layerB.style.opacity = '0';
       return;
     }
 
     // 同一张壁纸不重复切换
     if (src === currentSrc) return;
 
+    // 首次加载（也包括每次翻页后的恢复）：同步铺到下层，绝不能带过渡动画。
+    // 否则每次跳转壁纸都要从透明淡入 0.6s，视觉上就是「闪一下」。
+    // 图层自带主题底色，所以图片没解码完也不会露白。
+    if (!currentSrc) {
+      currentSrc = src;
+      pendingSrc = null;
+      document.body.style.backgroundColor = 'transparent';
+      setInstant(layerB, src);
+      layerA.style.opacity = '0';
+      layerA.style.backgroundImage = '';
+      return;
+    }
+
     pendingSrc = src;
 
+    // 先等新图下载 + 解码完成，再开始动画。
+    // 否则旧壁纸已经没了、新图还没到，中间会出现一整片空白（夜里看非常刺眼）。
     loadImage(src)
       .then(() => {
         // 加载期间用户又切了别的壁纸 → 丢弃这次的结果
         if (pendingSrc !== src) return;
         pendingSrc = null;
 
-        // 新壁纸已就绪，这时才让 body 透明（万一加载失败也不会露出空白底色）
+        if (fadeTimer) clearTimeout(fadeTimer);
+        if (cleanupTimer) clearTimeout(cleanupTimer);
+
+        // 核心：新壁纸放在「上层」淡入，下层的旧壁纸始终保持 100% 不透明。
+        // 这样全程总不透明度恒为 1，不会出现交叉淡化中途透光的闪烁。
         document.body.style.backgroundColor = 'transparent';
-
-        // 首次加载：没有旧壁纸要淡出，直接淡入
-        if (!currentSrc) {
-          currentSrc = src;
-          activeLayer.style.backgroundImage = `url("${src}")`;
-          activeLayer.offsetHeight; // 强制回流，确保浏览器注册了新背景图
-          activeLayer.style.opacity = '1';
-          inactiveLayer.style.opacity = '0';
-          return;
-        }
-
-        // 清除上一次可能残留的定时器
-        if (transitionTimer) clearTimeout(transitionTimer);
-
-        // 交叉淡入淡出：新图已在缓存里，淡入过程中不会再出现空白
-        inactiveLayer.style.backgroundImage = `url("${src}")`;
-        inactiveLayer.offsetHeight; // 强制回流，确保浏览器注册了新背景图
-        inactiveLayer.style.opacity = '1';
-        activeLayer.style.opacity = '0';
+        layerA.style.backgroundImage = `url("${src}")`;
+        layerA.offsetHeight; // 强制回流，确保新背景图已注册
+        layerA.style.opacity = '1';
         currentSrc = src;
 
-        // 动画完成后清理旧图层并交换
-        transitionTimer = setTimeout(() => {
-          activeLayer.style.backgroundImage = '';
-          swapLayers();
+        fadeTimer = setTimeout(() => {
+          fadeTimer = null;
+          // 淡入完成：把同一张图补到下层（URL 已在缓存且已解码，瞬时完成）
+          setInstant(layerB, src);
+          // 下层已经就位，此时上层淡出画面完全不变
+          layerA.style.opacity = '0';
+          cleanupTimer = setTimeout(() => {
+            cleanupTimer = null;
+            layerA.style.backgroundImage = '';
+          }, 700);
         }, 650);
       })
       .catch(() => {

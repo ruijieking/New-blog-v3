@@ -72,6 +72,16 @@ function navClass(href: string) {
   }
   document.addEventListener('astro:after-swap', applyTheme);
   </script>
+
+  <!-- ===== 最底层画布底色（防白闪）=====
+       html 背景决定浏览器 canvas 的颜色。body 为了露出壁纸图层会被设成透明，
+       此时如果 html 也没有背景色，canvas 就回落成默认白 ——
+       翻页、首帧、切壁纸的任何一瞬间都会闪白。
+       这里在 head 里同步写死主题底色，跟 global.css 里的 --c-bg 保持一致。 -->
+  <style is:inline>
+    html { background-color: #fafafa; }
+    html[data-theme="dark"] { background-color: #0f0f12; }
+  </style>
   </head>
 
   <body class="bg-bg text-fg min-h-screen flex flex-col">
