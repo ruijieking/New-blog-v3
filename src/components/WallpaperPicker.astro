@@ -135,6 +135,7 @@ const defaultDark = defaultWallpaper('dark');
       background-size: cover; background-position: center;
       transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1);
       pointer-events: none;
+      opacity: 0;
     `;
     document.body.prepend(layer);
   });
@@ -142,6 +143,7 @@ const defaultDark = defaultWallpaper('dark');
   let activeLayer = layerA;      // 当前可见图层
   let inactiveLayer = layerB;    // 待切换的隐藏图层
   let currentSrc = null;         // 当前显示的壁纸路径
+  let pendingSrc = null;         // 正在加载的目标壁纸（用于丢弃过期请求）
   let transitionTimer = null;    // 动画定时器
 
   // 交换活跃/非活跃图层
@@ -151,10 +153,29 @@ const defaultDark = defaultWallpaper('dark');
     inactiveLayer = tmp;
   }
 
+  // 预加载壁纸：等图片真正下载 + 解码完成后，再开始切换动画。
+  // 否则旧壁纸已经淡出、新图还没到，中间会出现一整片空白（夜里看非常刺眼）。
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        // decode() 让解码在进入合成前完成，淡入时不会掉帧
+        if (typeof img.decode === 'function') {
+          img.decode().then(() => resolve(src), () => resolve(src));
+        } else {
+          resolve(src);
+        }
+      };
+      img.onerror = () => reject(new Error(`壁纸加载失败：${src}`));
+      img.src = src;
+    });
+  }
+
   // 应用壁纸（带动画）
   function applyWallpaper(src) {
     // 清除壁纸：图层淡出，恢复 body 主题背景色
     if (!src) {
+      pendingSrc = null;
       currentSrc = null;
       document.body.style.backgroundColor = '';
       activeLayer.style.opacity = '0';
@@ -165,38 +186,47 @@ const defaultDark = defaultWallpaper('dark');
     // 同一张壁纸不重复切换
     if (src === currentSrc) return;
 
-    // 让 body 背景透明，壁纸才能透过来
-    document.body.style.backgroundColor = 'transparent';
+    pendingSrc = src;
 
-    // 首次加载：直接显示，无动画
-    if (!currentSrc) {
-      currentSrc = src;
-      activeLayer.style.backgroundImage = `url("${src}")`;
-      activeLayer.style.opacity = '1';
-      inactiveLayer.style.opacity = '0';
-      return;
-    }
+    loadImage(src)
+      .then(() => {
+        // 加载期间用户又切了别的壁纸 → 丢弃这次的结果
+        if (pendingSrc !== src) return;
+        pendingSrc = null;
 
-    // 清除上一次可能残留的定时器
-    if (transitionTimer) clearTimeout(transitionTimer);
+        // 新壁纸已就绪，这时才让 body 透明（万一加载失败也不会露出空白底色）
+        document.body.style.backgroundColor = 'transparent';
 
-    // 切换动画：新壁纸加载到隐藏图层 → 交叉淡入淡出
-    inactiveLayer.style.backgroundImage = `url("${src}")`;
+        // 首次加载：没有旧壁纸要淡出，直接淡入
+        if (!currentSrc) {
+          currentSrc = src;
+          activeLayer.style.backgroundImage = `url("${src}")`;
+          activeLayer.offsetHeight; // 强制回流，确保浏览器注册了新背景图
+          activeLayer.style.opacity = '1';
+          inactiveLayer.style.opacity = '0';
+          return;
+        }
 
-    // 强制回流，确保浏览器注册了新背景图
-    inactiveLayer.offsetHeight;
+        // 清除上一次可能残留的定时器
+        if (transitionTimer) clearTimeout(transitionTimer);
 
-    // 触发动画：新图层淡入，旧图层淡出
-    inactiveLayer.style.opacity = '1';
-    activeLayer.style.opacity = '0';
+        // 交叉淡入淡出：新图已在缓存里，淡入过程中不会再出现空白
+        inactiveLayer.style.backgroundImage = `url("${src}")`;
+        inactiveLayer.offsetHeight; // 强制回流，确保浏览器注册了新背景图
+        inactiveLayer.style.opacity = '1';
+        activeLayer.style.opacity = '0';
+        currentSrc = src;
 
-    currentSrc = src;
-
-    // 动画完成后清理旧图层并交换
-    transitionTimer = setTimeout(() => {
-      activeLayer.style.backgroundImage = '';
-      swapLayers();
-    }, 650);
+        // 动画完成后清理旧图层并交换
+        transitionTimer = setTimeout(() => {
+          activeLayer.style.backgroundImage = '';
+          swapLayers();
+        }, 650);
+      })
+      .catch(() => {
+        // 加载失败：保持当前壁纸不动，绝不切成空白
+        if (pendingSrc === src) pendingSrc = null;
+      });
   }
 
   function selectWallpaper(src) {
