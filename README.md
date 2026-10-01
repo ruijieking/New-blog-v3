@@ -1,6 +1,6 @@
 # Astro 博客模板
 
-一个现代、高颜值的个人博客模板，基于 **Astro** 与 **Tailwind CSS** 构建 —— 全静态、默认零客户端 JavaScript。主页、归档、相册、今日说法、关于页全部开箱即用，只需要改一个配置文件就能完成个性化定制。
+一个现代、高颜值的个人博客模板，基于 **Astro** 与 **Tailwind CSS** 构建 —— 全静态、默认零客户端 JavaScript。主页、归档、相册、今日说法、友链、关于页全部开箱即用，只需要改一个配置文件就能完成个性化定制。
 
 构建产物输出在 `dist/` 文件夹内。
 
@@ -19,17 +19,15 @@
 
 ## ✨ 功能特性
 
-
-
-
 - 🏠 **完整首页** —— 自动汇总最新的「今日说法 / 文章 / 照片」三块内容，无需手动维护
 - 📢 **公告栏** —— 首页左侧悬浮侧栏，内容在配置里一行一条
 - 📊 **记录栏** —— 自动统计文章数、说说数、照片数、总字数，并读取仓库最后一次更新时间
 - 🖼️ **文章封面图** —— frontmatter 加一行 `cover` 即可，列表卡片左侧自动显示
 - 👤 **关于页** —— 头像卡片 + 社交链接（GitHub / B 站 / 邮箱…，内置 SVG 图标）+ 简介卡片
+- 🔗 **友链页** —— 配置里加一行就多一个友链；头像外链失效会自动降级成站名首字占位，另带「申请友链」信息卡片与一键复制
 - 🧊 **液态玻璃导航栏** —— 用 SVG 位移滤镜做出水下折射波纹（Chromium 生效），其它浏览器自动降级为普通毛玻璃
 - 🌗 **明暗主题切换** —— 防首屏闪烁（FOUC），自动记忆你的选择
-- 🖼️ **壁纸系统** —— 明暗主题各配一套壁纸，交叉淡入淡出过渡，按主题分别记忆
+- 🖼️ **壁纸系统** —— 明暗主题各配一套壁纸，切换时先预加载再淡入（下层始终不透明），不闪白、不露底；按主题分别记忆
 - 📝 **博客文章** —— 基于 Astro content collections（标题、描述、日期、分类、标签、封面）
 - 📚 **归档时间轴** —— 按年份分组，支持**即时搜索**和**多标签过滤**
 - 💬 **今日说法** —— 轻量级碎碎念 / 短笔记板块
@@ -140,12 +138,30 @@ export const site = {
     { label: 'QQ 邮箱',  href: 'mailto:你的QQ号@qq.com',              icon: 'mail' },
   ],
 
+  // ── 友链页 ──
+  // name / url 必填，description / avatar 可选；
+  // avatar 留空（或外链失效）会自动用站名首字生成圆形占位，不会出现裂图。
+  // 数组留空 → 友链页显示「还没有添加友链」的引导文案
+  friends: [
+    {
+      name: '某某的博客',
+      url: 'https://example.com',
+      description: '前端 / 摄影 / 折腾 Linux',
+      avatar: 'https://example.com/avatar.png',
+    },
+  ],
+
+  // 友链页「申请友链」卡片的说明文字（留空则用默认文案）
+  friendApplyNote:
+    '欢迎交换友链～ 请先在你的站点加上本站链接，然后把「名称 / 链接 / 头像 / 简介」发给我。',
+
   // 导航栏（href + 显示文字，数组顺序即显示顺序）
   nav: [
     { href: '/talk', label: '今日说法' },
     { href: '/blog', label: '文章' },
     { href: '/archive', label: '归档' },
     { href: '/photo', label: '照片' },
+    { href: '/friends', label: '友链' },
     { href: '/about', label: '关于我' },
   ],
 };
@@ -219,6 +235,25 @@ src/assets/wallpaper/
 
 命名为 `默认light.png` / `默认dark.png` 的文件（或每个文件夹里的第一张图）会被用作默认壁纸。
 
+### 友链
+
+改 `src/site.config.ts` 里的 `friends` 数组就行，加一条多一个友链（不用动页面代码）：
+
+```ts
+friends: [
+  {
+    name: '某某的博客',                        // 站点名称（必填）
+    url: 'https://example.com',               // 站点地址（必填，带 https://）
+    description: '前端 / 摄影 / 折腾 Linux',    // 一句话简介（可选）
+    avatar: 'https://example.com/avatar.png', // 头像地址（可选）
+  },
+],
+```
+
+- 不写 `avatar` 会自动用站名首字生成圆形占位；外链失效（图被删 / 被墙）也会自动降级，不会出现裂图。
+- 「申请友链」卡片的说明文字改 `friendApplyNote`；卡片右侧会自动列出 `socials` 里的邮箱联系方式。
+- `friends` 留空数组时，友链页显示「还没有添加友链」的引导文案。
+
 ## 🗂️ 项目结构
 
 ```
@@ -234,6 +269,7 @@ src/assets/wallpaper/
 │   │   ├── NoticeBoard.astro    # 首页公告栏
 │   │   ├── SiteStats.astro      # 首页记录栏（文章/照片/字数/最后更新）
 │   │   ├── Post.astro           # 文章列表卡片（含封面图）
+│   │   ├── ReadFrostedGlass.astro  # 文章磨砂玻璃容器
 │   │   ├── AlbumCard.astro      # 相册卡片
 │   │   ├── Archive.astro        # 归档时间轴
 │   │   ├── TalkList.astro       # 今日说法列表
@@ -245,7 +281,7 @@ src/assets/wallpaper/
 │   │   ├── blog/           # 博客文章（.md）
 │   │   └── talk/           # 今日说法（.md）
 │   ├── layouts/            # BaseLayout（主题、壁纸、SEO、导航栏、液态玻璃滤镜）
-│   ├── pages/              # 页面路由
+│   ├── pages/              # 页面路由（首页 / 文章 / 归档 / 照片 / 今日说法 / 友链 / 关于 / 404 / RSS）
 │   ├── styles/global.css   # Tailwind 入口 + 主题色变量
 │   ├── content.config.ts   # 内容集合 schema
 │   └── site.config.ts      # ⭐ 全局站点配置
