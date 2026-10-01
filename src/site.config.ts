@@ -60,23 +60,19 @@ export const site = {
   //   avatar      头像图片地址（可选，留空则用站点名首字自动生成圆形占位）
   // 数组留空 → 友链页会显示「还没有友链」的占位文案
   friends: [
+
+    {
+      name: 'ruijieking',
+      url: 'https://ruijieking.github.io/',
+      description: '我的个人博客，记录 Linux、终端配置、Neovim 和摄影相关的内容。',
+      avatar: 'https://github.com/ruijieking.png'
+    },
+
     {
       name: 'Astro',
       url: 'https://astro.build',
       description: '本站使用的静态站点框架，内容优先、默认零 JS。',
       avatar: 'https://astro.build/favicon.svg',
-    },
-    {
-      name: 'Tailwind CSS',
-      url: 'https://tailwindcss.com',
-      description: '工具类优先的 CSS 框架，本站样式全部由它驱动。',
-      avatar: 'https://tailwindcss.com/favicons/favicon-32x32.png',
-    },
-    {
-      name: 'Vite',
-      url: 'https://vite.dev',
-      description: '极速的前端构建工具，Astro 的底层构建引擎。',
-      avatar: 'https://vite.dev/logo.svg',
     },
   ],
 
